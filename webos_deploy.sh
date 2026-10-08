@@ -5,6 +5,35 @@ backup_dir=/data/luneos_bak
 
 tmp_extract=/data/luneos_tmp_extract
 
+# Pick the busybox that extracts the rootfs. busybox-static is built against the
+# distro glibc, which assumes a newer kernel than some recoveries run (TWRP on a
+# 3.4 kernel): there stat, chmod, chown and utimensat fail with ENOSYS and tar
+# cannot even create its target directory. So use it only if it can do those on
+# this recovery, and otherwise fall back to the recovery's own busybox.
+busybox_works() {
+    probe=/tmp/busybox-probe
+    rm -rf $probe
+    mkdir $probe
+    $1 chmod 755 $probe >/dev/null 2>&1 &&
+        $1 touch -d "2020-01-01 00:00:00" $probe >/dev/null 2>&1 &&
+        $1 mkdir -p $probe/. >/dev/null 2>&1
+    ret=$?
+    rm -rf $probe
+    return $ret
+}
+
+bb=/tmp/busybox-static
+if ! busybox_works $bb; then
+    echo "busybox-static does not run on this recovery's kernel, looking for the recovery's busybox"
+    for cand in /sbin/busybox /system/bin/busybox /sbin/busybox.static; do
+        if [ -x $cand ] && busybox_works $cand; then
+            echo "Using $cand"
+            bb=$cand
+            break
+        fi
+    done
+fi
+
 backup() {
     mkdir -p $backup_dir
     if [ -d $2 ]; then
@@ -50,9 +79,9 @@ deploy_luneos() {
     mkdir $tmp_extract
 
     echo "Extracting /data/webos-rootfs.tar.gz to $tmp_extract"
-    /tmp/busybox-static tar --numeric-owner -xzf /data/webos-rootfs.tar.gz -C $tmp_extract
+    $bb tar --numeric-owner -xzf /data/webos-rootfs.tar.gz -C $tmp_extract
     if [ $? -ne 0 ] ; then
-        echo "ERROR: Failed to extract LuneOS on the internal memory. Propably not enough free space left to install LuneOS?" >&2
+        echo "ERROR: Failed to extract LuneOS on the internal memory. Not enough free space left to install LuneOS, or the busybox ($bb) does not work on this recovery?" >&2
         if ls $tmp_extract/lib/ld-linux-*.so.1 $tmp_extract/bin/busybox.nosuid >/dev/null 2>/dev/null; then
             echo "Trying with busybox already unpacked from webos-rootfs (hopefully)"
             rm -rf $tmp_extract-failed
