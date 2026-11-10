@@ -11,7 +11,14 @@
 # when it was really empty (because of missing quotes around $OUTFD)
 OUTFD=$(ps | grep -v "grep" | grep -o -E "updater(.*)" | cut -d " " -f 3)
 
-/sbin/sh $* 2>&1 | while read -r line; do
+
+# The exit status of a pipeline is that of its last command, the while loop, so
+# the script's own status is passed out through a file. Without it the updater
+# could not tell that the deploy failed.
+status_file=/tmp/ui-print-wrapper.status
+echo 1 > $status_file
+
+{ /sbin/sh "$@" 2>&1; echo $? > $status_file; } | while read -r line; do
     if [ -n "$OUTFD" ] ; then
         echo "ui_print $line" >&$OUTFD;
         echo "ui_print " >&$OUTFD;
@@ -19,3 +26,5 @@ OUTFD=$(ps | grep -v "grep" | grep -o -E "updater(.*)" | cut -d " " -f 3)
         echo "$line"
     fi
 done
+
+exit "$(cat $status_file)"
