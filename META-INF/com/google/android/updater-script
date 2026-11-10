@@ -10,7 +10,12 @@ run_program("/sbin/mount","/data");
 set_progress(0.100000);
 
 ui_print("Copying the LuneOS rootfs tarball...");
-package_extract_file("webos-rootfs.tar.gz", "/data/webos-rootfs.tar.gz");
+package_extract_file("webos-rootfs.tar.gz", "/data/webos-rootfs.tar.gz") || (
+    delete("/data/webos-rootfs.tar.gz");
+    abort("Could not copy the rootfs tarball to /data, is it full? Nothing was installed.")
+);
+# Optional: the space the unpacked rootfs takes, for webos_deploy.sh's space check
+package_extract_file("webos-rootfs.size", "/tmp/webos-rootfs.size");
 package_extract_file("busybox-static", "/tmp/busybox-static");
 package_extract_file("webos_deploy.sh", "/tmp/webos_deploy.sh");
 package_extract_file("ui-print-wrapper.sh", "/tmp/ui-print-wrapper.sh");
@@ -20,7 +25,11 @@ set_perm(0, 0, 0777, "/tmp/ui-print-wrapper.sh");
 set_progress(0.300000);
 
 ui_print("Deploying LuneOS...");
-run_program("/tmp/ui-print-wrapper.sh", "/tmp/webos_deploy.sh");
+# run_program returns the wait status as a string, so anything but "0" is a
+# failure. Stop here then: flashing the kernel would pair it with a rootfs that
+# was not installed, and the old installation is still bootable, if any is left.
+run_program("/tmp/ui-print-wrapper.sh", "/tmp/webos_deploy.sh") == "0" ||
+    abort("Deploying LuneOS failed, see the messages above. The kernel was not flashed.");
 set_progress(0.700000);
 
 ui_print("Flashing kernel ...");
