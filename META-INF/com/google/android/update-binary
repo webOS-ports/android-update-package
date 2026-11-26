@@ -73,6 +73,11 @@ partition_of() {
     esac
 }
 
+file_in_zip() {
+  unzip -l "$SUMS" "$1" > /dev/null && return 0
+  return 1
+}
+
 # Sets SHA, SIZE and PARTS from this package's checksum list ("<sha256> <size>
 # <parts> <name>"); fails if the image is not in the package. PARTS is 0 for an
 # image stored whole.
@@ -158,6 +163,7 @@ ui_print "Mounting userdata partition..."
 mount /data || /usr/bin/mount -t ext4 /dev/block/by-name/userdata /data || die "Cannot mount /data, exiting without flashing anything."
 if grep -q ' /data ' /proc/mounts; then
     for image in rootfs android-rootfs; do
+      file_in_zip "$image.img" || continue
       ui_print "Extracting: $image..."
       unzip -o "$ZIP" $image.img -d /data 2>>"$LOG" || ui_print "cannot unpack $image from the package"
     done
@@ -167,21 +173,23 @@ fi || die "Cannot mount /data, exiting without flashing anything."
 set_progress 0.100000
 
 ui_print "Copying the LuneOS rootfs tarball...";
-package_extract_file "webos-rootfs.tar.gz" "/data" 0 0 0644
+file_in_zip "webos-rootfs.tar.gz" && package_extract_file "webos-rootfs.tar.gz" "/data" 0 0 0644
 package_extract_file "luneos-sha256sums" "/tmp" 0 0 0755
 package_extract_file "busybox-static" "/tmp" 0 0 0755
 package_extract_file "webos_deploy.sh" "/tmp" 0 0 0755
-package_extract_file "ui-print-wrapper.sh" "/tmp" 0 0 0755
 set_progress 0.300000
 
 ui_print "Deploying LuneOS..."
 # source the shell script, so that it inherits the ui_print function
-. /tmp/webos_deploy.sh
+if [ file_in_zip "webos-rootfs.tar.gz" ]; then
+  . /tmp/webos_deploy.sh
+fi
 set_progress 0.700000
 
 # The boot images come last: until they are written, an interrupted install
 # leaves whatever was there before in charge of booting.
 for image in vbmeta boot init_boot; do
+    file_in_zip "$image.img" || continue
 		ui_print "Flashing $image ..."
 		package_extract_file "$image.img" "/tmp" 0 0 644
     flash_image "$image"
