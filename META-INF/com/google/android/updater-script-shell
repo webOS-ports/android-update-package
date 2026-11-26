@@ -6,13 +6,14 @@
 OUTFD=$2
 ZIP=$3
 
-DEVICE="###DEVICE###"
 BLOCK=/dev/block/by-name
 SUMS=/tmp/luneos-sha256sums
 LOG=/tmp/luneos-install.log
 FAILED=/tmp/luneos-extract-failed
-# Size of the pieces a large image is split into, in MiB.
-PART_MIB=###PART_MIB###
+BOOT_PARTITION=$BLOCK/boot$1
+
+# define device specific variables
+source machine-setup.inc
 
 # Writing to the fd by path works whatever its number; a shell redirect to it
 # is limited to single digits on some shells.
@@ -63,9 +64,10 @@ device_matches() {
     return 1
 }
 
-# The partition an image goes to. Only userdata has no slot.
+# The partition an image goes to. Boot partition can be overriden, and userdata has no slot.
 partition_of() {
     case $1 in
+    boot) echo "$BOOT_PARTITION" ;; 
     userdata) echo "$BLOCK/userdata" ;;
     *) echo "$BLOCK/$1$SLOT" ;;
     esac
