@@ -12,9 +12,6 @@ LOG=/tmp/luneos-install.log
 FAILED=/tmp/luneos-extract-failed
 BOOT_PARTITION=$BLOCK/boot$1
 
-# define device specific variables
-source machine-setup.inc
-
 # Writing to the fd by path works whatever its number; a shell redirect to it
 # is limited to single digits on some shells.
 to_recovery() {
@@ -136,6 +133,11 @@ flash_image() {
 ui_print "====================================="
 ui_print "Welcome to the LuneOS RootFS Updater"
 ui_print "====================================="
+
+# first, define device specific variables
+unzip -p "$ZIP" META-INF/com/google/android/machine-setup.inc > /tmp/machine-setup.inc 2>"$LOG" || die "cannot read the package"
+[ -s /tmp/machine-setup.inc ] || die "could not extract machine-setup.inc"
+source /tmp/machine-setup.inc
 
 device_matches || die "this package is for $DEVICE; this is $(getprop ro.product.vendor.device)"
 
