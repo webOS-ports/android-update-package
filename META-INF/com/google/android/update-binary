@@ -1,4 +1,4 @@
-#!/system/bin/sh
+#!###STARTUP_SCRIPT###
 #
 # Recovery runs this as: update-binary <api version> <status fd> <zip path>
 # Everything it needs comes from the recovery ramdisk: sh, toybox and ziptool.
